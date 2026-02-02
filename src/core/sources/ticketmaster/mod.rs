@@ -70,7 +70,7 @@ pub async fn search_artist_by_mbid(
     let mut query = vec![];
     query.push(("keyword", &name));
     query.push(("apikey", &api_key));
-    let found_artists = match search_artist(Some(name), None, api_key, client)
+    let found_artists = match search_artist(Some(name.clone()), None, api_key, client)
         .await?
         .embedded
     {
@@ -78,16 +78,25 @@ pub async fn search_artist_by_mbid(
         Some(emb) => emb.attractions,
     };
     for found in found_artists {
-        match found.external_links.clone().unwrap().musicbrainz {
-            Some(mb) => {
-                if let Some(mb) = mb.first() {
-                    let id = mb.clone().id.unwrap();
-                    if id == mbid {
-                        return Ok(Some(found.id.unwrap()));
-                    }
-                };
+        match found.external_links {
+            Some(links) => {
+                match links.musicbrainz {
+                    Some(mb) => {
+                    if let Some(mb) = mb.first() {
+                        let id = mb.clone().id.unwrap();
+                        if id == mbid {
+                            return Ok(Some(found.id.unwrap()));
+                        }
+                    };
+                }
+                    None => continue,
+                }
+            },
+            None => {
+                if found.name.is_some_and(|maybe_name| maybe_name == name) {
+                    return Ok(Some(found.id.unwrap()));
+                }
             }
-            None => continue,
         }
     }
     Ok(None)

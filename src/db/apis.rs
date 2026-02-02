@@ -179,6 +179,22 @@ pub async fn get_api_artist_data(
         .await??)
 }
 
+pub async fn get_api_artist_data_all(
+    artist_id: i32,
+    pool: &Pool,
+) -> Result<Option<Vec<(String, String)>>, ConcaveError> {
+    let conn = pool.get().await.unwrap();
+    Ok(conn
+        .interact(move |conn| {
+            artistdata::table
+                .filter(artistdata::artist_id.eq(artist_id))
+                .select((artistdata::key, artistdata::value))
+                .load::<(String, String)>(conn)
+                .optional()
+        })
+        .await??)
+}
+
 pub async fn list_apis(pool: &Pool) -> Result<Vec<Api>, ConcaveError> {
     let conn = pool.get().await.unwrap();
     Ok(conn
@@ -200,5 +216,24 @@ pub async fn remove_api(api_id: i32, pool: &Pool) -> Result<usize, ConcaveError>
     .await??;
     Ok(conn
         .interact(move |conn| delete(apis::table.filter(apis::id.eq(api_id))).execute(conn))
+        .await??)
+}
+
+pub async fn remove_kv(artist_id: i32, api_id: i32, key: String, pool: &Pool) -> Result<usize, ConcaveError> {
+    let conn = pool.get().await.unwrap();
+    Ok(conn
+        .interact(move |conn| {
+            delete(
+                artistdata::table.filter(
+                    artistdata::artist_id.eq(artist_id)
+                )
+                .filter(
+                    artistdata::api_id.eq(api_id)
+                )
+                .filter(
+                    artistdata::key.eq(key)
+                )
+            ).execute(conn)
+        })
         .await??)
 }

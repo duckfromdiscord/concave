@@ -25,6 +25,7 @@ pub struct SourceInfo {
     pub name: String,
     pub readable: String,
     pub params: Vec<String>,
+    pub artist_kv: Vec<(String, String)>,
 }
 
 impl Source {
@@ -34,11 +35,13 @@ impl Source {
                 name: "mbz".to_string(),
                 readable: "Musicbrainz".to_string(),
                 params: vec![],
+                artist_kv: musicbrainz::get_required_data(),
             },
             SourceInfo {
                 name: "ticketmaster".to_string(),
                 readable: "Ticketmaster".to_string(),
                 params: vec!["key".to_string()],
+                artist_kv: ticketmaster::get_required_data(),
             },
         ]
     }
@@ -94,6 +97,27 @@ impl Source {
         match self {
             Source::MbzEvents() => musicbrainz::get_id(artist_id, pool).await,
             Source::Ticketmaster(_) => ticketmaster::get_id(artist_id, api_id, pool).await,
+        }
+    }
+    pub async fn autodetect(
+        self,
+        artist_id: i32,
+        client: Client,
+        pool: &Pool
+    ) -> Result<HashMap<String, String>, ConcaveError> {
+        match self {
+            // TODO: move mbid into KVs instead of part of artist entry
+            Source::MbzEvents() => Ok(HashMap::new()),
+            Source::Ticketmaster(key) => {
+                // TODO: should no mbid be an error or return an empty Vec with no autodetected info? 
+                let mbid = musicbrainz::get_id(artist_id, pool).await?;
+                let att_id = ticketmaster::search_artist_by_mbid(mbid, key, client).await?;
+                let mut map = HashMap::new();
+                if let Some(id) = att_id {
+                    map.insert("att_id".to_string(), id);
+                }
+                Ok(map)
+            }
         }
     }
     pub async fn lookup(
@@ -152,6 +176,9 @@ impl Source {
                         }
                     }
                     return Ok(return_events);
+                } else {
+                    // `embedded` is `None` instead of an empty array if there are no events apparently.
+                    return Ok(vec![]);
                 }
                 Err(ConcaveError::ArtistDoesNotExist)
             } //_ => todo!(),

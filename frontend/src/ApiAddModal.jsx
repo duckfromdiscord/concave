@@ -8,15 +8,9 @@ class ApiAddModal extends React.Component {
   constructor(props) {
     super(props);
 
-    this.state = { api: "", api_readable: "", required: [], apis: [], responses: {} };
+    this.state = { api: "", api_readable: "", required: [], responses: {} };
 
-    axios.get('/api/get_sources', {
-                params: {
-                }
-            })
-            .then((response) => {
-                this.setState({apis: response.data.sources});
-            });
+    
   }
 
   merge(ob, k, v) {
@@ -35,7 +29,7 @@ class ApiAddModal extends React.Component {
           <input className="input" placeholder="Search" value={this.state.api_readable} onInput={(e) => this.setState({api: e.target.value})} />
           <ul tabindex="0" className="dropdown-content z-[2] menu p-2 shadow bg-base-100 max-h-80 flex-nowrap overflow-auto">
             <li>
-                   {this.state.apis.map((v, i) => {
+                   {this.props.sources.map((v, i) => {
                      return <a onClick={() => { this.setState({api: v.name, api_readable: v.readable, required: v.params, responses: {}}) }}>{v.readable}</a>
                    })}
                 
@@ -54,7 +48,6 @@ class ApiAddModal extends React.Component {
         <div className="modal-action">
           <label htmlFor="api_add" className="btn bg-accent-content"
           onClick={() => {
-            console.log(this.state);
             axios.post('/api/add_api', {
                   name: this.state.api,
                   params: this.state.responses

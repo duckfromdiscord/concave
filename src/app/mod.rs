@@ -5,6 +5,7 @@ use crate::core::artist::get_artist_image;
 use crate::core::event::Location;
 use crate::core::sources::SourceInfo;
 use crate::db::AppState;
+use crate::db::apis::{add_artist_kv_for_api, get_api_artist_data_all, remove_kv};
 use actix_web::http::StatusCode;
 use actix_web::web::Redirect;
 use actix_web::{Either as ActixEither, Responder, get, post};
@@ -260,6 +261,35 @@ pub struct LookupAt {
     pub artist_id: i32,
 }
 
+
+#[derive(Debug, Deserialize, Clone)]
+pub struct ArtistKVs {
+    pub artist_id: i32,
+}
+
+
+#[derive(Debug, Serialize, Clone)]
+pub struct ArtistKVsResponse {
+    pub kvs: Option<Vec<(String, String)>>,
+    pub error: Option<String>,
+}
+
+
+#[derive(Debug, Deserialize, Clone)]
+pub struct SetKV {
+    pub api_id: i32,
+    pub artist_id: i32,
+    pub key: String,
+    pub value: Option<String>
+}
+
+
+#[derive(Debug, Serialize, Clone)]
+pub struct SetKVsResponse {
+    pub error: Option<String>,
+}
+
+
 #[get("/api/list_artists")]
 pub async fn list_artists(data: web::Data<AppState>) -> HttpResponse {
     let artists = crate::db::artists::list_artists(&data.db)
@@ -430,7 +460,7 @@ pub async fn lookup_at(data: web::Data<AppState>, info: web::Query<LookupAt>) ->
         }
     };
     match apis {
-        Ok(apis) => {
+        Ok(_apis) => {
             let source =
                 match crate::core::sources::Source::from_name_and_params(api.sitename, params) {
                     Ok(source) => source,
@@ -473,6 +503,68 @@ pub async fn lookup_at(data: web::Data<AppState>, info: web::Query<LookupAt>) ->
                 events: None,
                 error: Some(err),
             });
+        }
+    }
+}
+
+
+
+
+#[get("/api/artist_kvs")]
+pub async fn artist_kvs(data: web::Data<AppState>, info: web::Query<ArtistKVs>) -> HttpResponse {
+   // TODO: fail on purpose if artist does not exist?
+   
+   match get_api_artist_data_all(info.artist_id, &data.db).await {
+        Ok(some) => {
+            let info = some.unwrap_or(vec![]);
+            return HttpResponse::build(StatusCode::OK).json(ArtistKVsResponse {
+                    kvs: Some(info),
+                    error: None,
+            });
+        }
+        Err(err) => {
+            return HttpResponse::build(StatusCode::OK).json(ArtistKVsResponse {
+                    kvs: None,
+                    error: Some(err.to_string()),
+            });
+        }
+    }
+}
+
+
+
+#[post("/api/set_kv")]
+pub async fn set_kv(data: web::Data<AppState>, info: web::Json<SetKV>) -> HttpResponse {
+    match &info.value {
+        Some(value) => {
+            // remove first if exists
+            let _ = remove_kv(info.artist_id, info.api_id, info.clone().key, &data.db).await;
+            match add_artist_kv_for_api(info.artist_id, info.api_id, info.clone().key, value.to_string(), &data.db).await {
+                Ok(_) => {
+                    return HttpResponse::build(StatusCode::OK).json(SetKVsResponse {
+                        error: None,
+                    });
+                },
+                Err(err) => {
+                    return HttpResponse::build(StatusCode::OK).json(SetKVsResponse {
+                        error: Some(err.to_string()),
+                    });
+                }
+            }
+        },
+        None => {
+            match remove_kv(info.artist_id, info.api_id, info.clone().key, &data.db).await {
+                Ok(_) => {
+                    return HttpResponse::build(StatusCode::OK).json(SetKVsResponse {
+                        error: None,
+                    });
+                },
+                Err(err) => {
+                    return HttpResponse::build(StatusCode::OK).json(SetKVsResponse {
+                        error: Some(err.to_string()),
+                    });
+                }
+            }
         }
     }
 }

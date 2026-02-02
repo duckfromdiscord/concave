@@ -68,6 +68,8 @@ async fn main() -> std::io::Result<()> {
             .service(concave::app::delete_api)
             .service(concave::app::get_sources)
             .service(concave::app::lookup_at)
+            .service(concave::app::artist_kvs)
+            .service(concave::app::set_kv)
             .service(actix_files::Files::new("/", "./frontend/dist").index_file("index.html"))
             .wrap(middleware::Logger::default())
     })

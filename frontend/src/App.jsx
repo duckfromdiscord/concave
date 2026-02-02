@@ -5,6 +5,7 @@ import './App.css'
 import ArtistAddModal from './ArtistAddModal.jsx';
 import ApiAddModal from './ApiAddModal.jsx';
 import Display from './Display.jsx';
+import ArtistModifyModal from './ArtistModifyModal.jsx';
 
 // designed with much inspiration from daisy-components at https://github.com/willpinha/daisy-components
 
@@ -13,9 +14,10 @@ class App extends React.Component {
   constructor(props) {
     super(props);
 
-    this.state = { artists: [], apis: [] };
+    this.state = { artists: [], apis: [], sources: [], source_kvs: [], selectedArtist: null };
     this.updateArtists = this.updateArtists.bind(this);
     this.updateApis = this.updateApis.bind(this);
+    this.updateSources = this.updateSources.bind(this);
   }
 
 
@@ -31,14 +33,25 @@ class App extends React.Component {
         t.setState({ apis: response.data.apis });
       });
   }
+  updateSources = (t) => {
+    axios.get('/api/get_sources')
+      .then((response) => {
+        t.setState({sources: response.data.sources});
+        var source_kvs = [];
+        for (var source of response.data.sources) {
+          var name = source.name;
+          for (var kv of source.artist_kv) {
+            // internal name, source it's for, readable name
+            source_kvs.push([kv[0], name, kv[1]]);
+          }
+        }
+        this.setState({source_kvs: source_kvs});
+      });
+  }
 
   componentDidMount() {
     this.setState({ artists: [] });
-    setInterval(() => { this.updateArtists(this); this.updateApis(this); }, 1000);
-  }
-
-  displayArtistClick(artist) {
-    console.log(artist);
+    setInterval(() => { this.updateArtists(this); this.updateApis(this); this.updateSources(this); }, 1000);
   }
 
   render() {
@@ -65,20 +78,29 @@ class App extends React.Component {
         </nav>
         <br />
         <div className='h-full w-full'>
-          <Display apis={this.state.apis} artists={this.state.artists} onArtistClick={this.displayArtistClick}/>
+          <Display apis={this.state.apis} artists={this.state.artists} onArtistClick={(artist) => {
+    document.getElementById("artist_modify").checked = true;
+    this.setState({selectedArtist: artist});
+    }}/>
         </div>
 
         {/* Normally, since buttons in modals in daisyUI close the modal, we need to use the "legacy checkbox method" to close them,
     so that we are able to free up buttons to work within the modal. */}
         <input type="checkbox" id="artist_add" className="modal-toggle" />
         <div className="modal" role="dialog">
-          <ArtistAddModal />
+          <ArtistAddModal sources={this.state.sources} apis={this.state.apis} />
         </div>
 
         <input type="checkbox" id="api_add" className="modal-toggle" />
         <div className="modal" role="dialog">
-            <ApiAddModal />
+            <ApiAddModal sources={this.state.sources} />
         </div>
+
+        <input type="checkbox" id="artist_modify" className="modal-toggle" />
+        <div className="modal" role="dialog">
+            <ArtistModifyModal kvs={this.state.source_kvs} selectedArtist={this.state.selectedArtist} apis={this.state.apis} sources={this.state.sources} />
+        </div>
+
 
       </div>
     )
